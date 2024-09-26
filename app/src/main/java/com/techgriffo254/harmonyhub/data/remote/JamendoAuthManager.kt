@@ -32,11 +32,11 @@ class JamendoAuthManager(
     fun startAuthProcess() {
         val authorizeUrl = Uri.parse("https://api.jamendo.com/v3.0/oauth/authorize").buildUpon()
             .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("audio_format", "mp3")
             .appendQueryParameter("redirect_uri", redirectUri)
             .appendQueryParameter("scope", scope)
             .appendQueryParameter("response_type", "code")
             .build()
-
         Log.d("JamendoAuthManager", "Starting auth process with URL: $authorizeUrl")
         val customTabsIntent = CustomTabsIntent.Builder().build()
         customTabsIntent.launchUrl(context, authorizeUrl)

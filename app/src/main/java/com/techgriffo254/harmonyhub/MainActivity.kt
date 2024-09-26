@@ -1,10 +1,13 @@
 package com.techgriffo254.harmonyhub
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,9 +20,10 @@ import com.techgriffo254.harmonyhub.data.remote.JamendoAuthManager
 import com.techgriffo254.harmonyhub.data.remote.RetrofitInstance
 import com.techgriffo254.harmonyhub.domain.repository.TrackRepository
 import com.techgriffo254.harmonyhub.navigation.AppNavHost
+import com.techgriffo254.harmonyhub.ui.presentation.PermissionsRequester
 import com.techgriffo254.harmonyhub.ui.presentation.auth.AuthViewModel
+import com.techgriffo254.harmonyhub.ui.presentation.home.HomeViewModel
 import com.techgriffo254.harmonyhub.utils.UserPreferences
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -30,12 +34,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var authViewModel: AuthViewModel
     private lateinit var trackRepository: TrackRepository
     private lateinit var userPreferences: UserPreferences
+    private lateinit var homeViewModel: HomeViewModel
+    private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         userPreferences = UserPreferences(applicationContext)
-        authManager = JamendoAuthManager(this,userPreferences )
+        authManager = JamendoAuthManager(this, userPreferences)
         trackRepository = TrackRepository(
             AppDatabase.getDatabase(this).trackDao(),
             RetrofitInstance.api
@@ -50,6 +57,7 @@ class MainActivity : ComponentActivity() {
         )
 
         authViewModel = appContainer.authViewModel
+        homeViewModel = appContainer.homeViewModel
 
         handleIntent(intent)
 
@@ -64,7 +72,24 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+
+        // Create and use PermissionsRequester
+        val permissionsRequester = PermissionsRequester(
+            context = this,
+            onPermissionsGranted = {
+                // Fetch local tracks if permissions are granted
+                homeViewModel.fetchLocalTracks()
+            },
+            onPermissionsDenied = {
+                // Handle the case when permissions are denied
+                Log.e("MainActivity", "Permissions denied")
+            }
+        )
+
+        // Check and request permissions
+        permissionsRequester.checkAndRequestPermissions(this)
     }
+
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -76,11 +101,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun onStart() {
-        super.onStart()
-
     }
 
     private fun handleAuthorizationResponse(intent: Intent?) {

@@ -1,5 +1,6 @@
 package com.techgriffo254.harmonyhub.ui.presentation.player
 
+import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,9 +16,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import coil.compose.rememberAsyncImagePainter
 import com.techgriffo254.harmonyhub.domain.model.Track
 
+@OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     trackId: String,

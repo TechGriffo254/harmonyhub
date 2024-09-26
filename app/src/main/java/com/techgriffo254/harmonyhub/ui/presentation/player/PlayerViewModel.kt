@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,6 +27,7 @@ import com.techgriffo254.harmonyhub.ui.presentation.service.PlaybackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.guava.asDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,11 +35,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.IOException
 
+@UnstableApi
 class PlayerViewModel(
     private val application: Context,
     private val repository: TrackRepository
-) : AndroidViewModel(application as Application)
-{
+) : AndroidViewModel(application as Application) {
 
     private var mediaController: MediaController? = null
     private var serviceConnection: ServiceConnection? = null
@@ -49,6 +51,7 @@ class PlayerViewModel(
 
     init {
         connectToService()
+        fetchLocalTracks()
     }
 
     private fun connectToService() {
@@ -74,7 +77,7 @@ class PlayerViewModel(
         }
     }
 
-        /**
+    /**
      * Fetches a track by its ID and prepares the ExoPlayer for playback.
      *
      * @param id The ID of the track to fetch.
@@ -99,6 +102,30 @@ class PlayerViewModel(
         }
     }
 
+    // Fetch local audio files
+    fun fetchLocalTracks() {
+        viewModelScope.launch {
+            val localTracks = withContext(Dispatchers.IO) {
+                repository.getLocalAudioFiles(application) // Call the function to fetch local audio files
+            }
+            trackList = localTracks.toList().first() // Convert the Flow to a List
+            if (trackList.isNotEmpty()) {
+                _playerState.value = _playerState.value.copy(
+                    track = trackList.first(), // Optionally play the first track
+                    isLoading = false,
+                    error = null
+                )
+                // Prepare ExoPlayer with the first track's audio path if needed
+                prepareExoPlayer(trackList.first().audio)
+            } else {
+                _playerState.value = _playerState.value.copy(
+                    isLoading = false,
+                    error = Error("No local tracks found")
+                )
+            }
+        }
+    }
+
     /**
      * Prepares the ExoPlayer for playback.
      *
@@ -112,19 +139,19 @@ class PlayerViewModel(
 
             withContext(Dispatchers.Main) {
                 exoPlayer?.release()
-                val extractorsFactory = DefaultExtractorsFactory()
                 val mediaSourceFactory = ProgressiveMediaSource.Factory(dataSourceFactory)
                 exoPlayer = ExoPlayer.Builder(application)
                     .setMediaSourceFactory(mediaSourceFactory)
                     .build()
                 exoPlayer?.let {
                     val mediaItem = MediaItem.Builder()
-                        .setUri(audioUrl)
-                        .setMimeType(MimeTypes.AUDIO_MPEG)
+                        .setUri(audioUrl) // Removed explicit MIME type to let ExoPlayer detect it
                         .build()
+
                     it.setMediaItem(mediaItem)
                     it.prepare()
                     it.playWhenReady = true
+
                     it.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
@@ -134,15 +161,12 @@ class PlayerViewModel(
                                         duration = it.duration.toFloat()
                                     )
                                 }
-
                                 Player.STATE_ENDED -> {
                                     _playerState.value = _playerState.value.copy(isPlaying = false)
                                 }
-
                                 Player.STATE_BUFFERING -> {
                                     _playerState.value = _playerState.value.copy(isLoading = true)
                                 }
-
                                 Player.STATE_IDLE -> {
                                     _playerState.value = _playerState.value.copy(isLoading = false)
                                 }
@@ -150,11 +174,15 @@ class PlayerViewModel(
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
+                            // Enhanced error logging for better diagnosis
                             val errorMessage = when (error.errorCode) {
                                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "Network connection failed"
                                 PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "File not found"
+                                PlaybackException.ERROR_CODE_UNSPECIFIED -> "Source error: ${error.message}"
                                 else -> "Unknown error: ${error.message}"
                             }
+                            Log.e("ExoPlayerError", "Error: $errorMessage", error)
+
                             _playerState.value = _playerState.value.copy(
                                 error = Error("ExoPlayer error: $errorMessage"),
                                 isReady = false
@@ -239,24 +267,24 @@ class PlayerViewModel(
         }
     }
 
-    /**
-     * Gets the redirected URL for a given URL.
-     *
-     * @param url The URL to get the redirected URL for.
-     * @return The redirected URL.
-     */
-    private fun getRedirectedUrl(url: String): String {
-        val client = OkHttpClient()
-        val request = Request.Builder()
-            .url(url)
-            .build()
-
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Unexpected code $response")
-
-            return response.request.url.toString()
-        }
-    }
+//    /**
+//     * Gets the redirected URL for a given URL.
+//     *
+//     * @param url The URL to get the redirected URL for.
+//     * @return The redirected URL.
+//     */
+//    private fun getRedirectedUrl(url: String): String {
+//        val client = OkHttpClient()
+//        val request = Request.Builder()
+//            .url(url)
+//            .build()
+//
+//        client.newCall(request).execute().use { response ->
+//            if (!response.isSuccessful) throw IOException("Unexpected code $response")
+//
+//            return response.request.url.toString()
+//        }
+//    }
 
 }
 
@@ -269,5 +297,4 @@ data class TrackUiState(
     val progress: Float = 0f,
     val duration: Float = 0f
 )
-
 

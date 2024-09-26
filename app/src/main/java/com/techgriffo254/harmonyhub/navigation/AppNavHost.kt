@@ -44,15 +44,15 @@ fun AppNavHost(
     }
 
     // Observe navigation events
-    LaunchedEffect(authViewModel) {
+    LaunchedEffect(authViewModel.checkAndRefreshToken()) {
         authViewModel.navigationEvents.collect { event ->
             when (event) {
-                is NavigationEvent.NavigateToHome -> {
+                NavigationEvent.NavigateToHome -> {
                     navController.navigate(HarmonyScreen.Home.route) {
                         popUpTo(HarmonyScreen.SignIn.route) { inclusive = true }
                     }
                 }
-                is NavigationEvent.NavigateToLogin -> {
+                NavigationEvent.NavigateToLogin -> {
                     navController.navigate(HarmonyScreen.SignIn.route) {
                         popUpTo(HarmonyScreen.Home.route) { inclusive = true }
                     }
@@ -78,9 +78,11 @@ fun AppNavHost(
             HomeScreen(
                 uiState = uiState,
                 onSearchQueryChange = { viewModel.searchTracks(it) },
-                onClick = { trackId ->
-                    navController.navigate("${HarmonyScreen.Player.route}/$trackId")
-                },
+//                onClick = { trackId ->
+//                    navController.navigate("${HarmonyScreen.Player.route}/$trackId")
+//                },
+                onLocalTrackClick = {trackId -> navController.navigate("${HarmonyScreen.Player.route}/$trackId")},
+                onRemoteTrackClick = {trackId -> navController.navigate("${HarmonyScreen.Player.route}/$trackId")}
 //                onSignOut = {
 //                    authViewModel.signOut()
 //                    navController.navigate(HarmonyScreen.SignIn.route) {

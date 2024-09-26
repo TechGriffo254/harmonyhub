@@ -26,7 +26,7 @@ class HarmonyAppContainer(
     val authViewModel = AuthViewModelFactory(authManager,userPreferences, trackRepository).create(
         AuthViewModel::class.java)
 
-    val homeViewModel = HomeViewModelFactory(TrackRepository(trackDao,apiService)).create(
+    val homeViewModel = HomeViewModelFactory(TrackRepository(trackDao,apiService), applicationContext).create(
         HomeViewModel::class.java)
 
     val playerViewModel = PlayerViewModelFactory(applicationContext, trackRepository).create(
